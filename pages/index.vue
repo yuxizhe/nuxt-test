@@ -4,7 +4,7 @@
       <li v-for='name, key in tabs' :data-tab='key' @click='clickTab' :class='selectedTab === key ? "active": ""'>{{name}}</li>
     </ul>
     <ul class='list'>
-      <li v-for='product in filterdProducts'>
+      <li v-for='product in filterdProducts' @click='redirectUrl("/product/" + product.product_id)'>
         <!-- <router-link :to="{name: 'ProductDetail', params: {id: product.product_id}}"> -->
         <a>
           <img v-lazy='product.product_pic_url + "!custom.jpg"'>
@@ -37,6 +37,7 @@
         <img v-lazy='"https://xqimg.imedao.com/15cab49034d77b3fea560dab.png!custom660.jpg"' >
       </div>
     </div>
+    <copyRight></copyRight>
 
   </div>
   <div id='page_loading' v-else>
@@ -49,6 +50,8 @@
 
 <script>
   import axios from '~plugins/axios'
+  import xqBridge from '~assets/bridge.js'
+  import copyRight from '~components/copyRight.vue'
   // import wx from 'http://res.wx.qq.com/open/js/jweixin-1.0.0.js'
   export default {
     name: 'MainList',
@@ -114,7 +117,7 @@
     },
     head () {
       return {
-        title: 'Users'
+        title: '雪球保险'
       }
     },
     computed: {
@@ -131,7 +134,10 @@
       // this.fetchData()
     },
     mounted () {
-      // this.getShareInfo()
+      this.getShareInfo()
+    },
+    components: {
+      copyRight
     },
     methods: {
       fetchData () {
@@ -151,6 +157,15 @@
         // tab.target.classList.add('active')
         this.selectedTab = tab.target.getAttribute('data-tab')
       },
+      redirectUrl (url) {
+        if (this.share.from) {
+          url = url + '?from=' + this.share.from + '&channel=' + this.share.channel
+        }
+        xqBridge.redirect({
+          type: 'PUSH',
+          url: url
+        })
+      },
       readableType (type) {
         const types = {
           'CHILD': '少儿',
@@ -161,6 +176,128 @@
           'FAMILY': '家庭'
         }
         return types[type]
+      },
+      getShareInfo () {
+        var user = async (token) => {
+          let url = '/api/insurance/product/share/channel/query.json'
+          if (token) {
+            url = url + '?access_token=' + token
+          }
+          try {
+            const json = await fetch(url, {credentials: 'same-origin'})
+            const data = await json.json()
+            console.log(data)
+            if (data.error_code) {
+              this.xqShare()
+              this.wxShare()
+            } else {
+              this.xqShare(data.data.code)
+              this.wxShare(data.data.code)
+            }
+          } catch (error) {
+            console.log(error)
+          }
+        }
+        if (navigator.userAgent.match(/Xueqiu Android/i)) {
+          xqBridge.getAccessToken({
+            success: token => {
+              this.access_token = token
+              user(token)
+            }
+          })
+        } else {
+          user()
+        }
+      },
+      xqShare (id) {
+        console.log(id)
+        if (!id) {
+          id = ''
+        }
+        xqBridge.setRightNavigationButton({
+          title: '分享',
+          action: function () {
+            var shareTitle = '雪球保险'
+            var shareParams = {
+              title: shareTitle,
+              url: 'https://baoxian.xueqiu.com/#/?from=xq_share&channel=' + id,
+              target: '',
+              img: 'https://xqimg.imedao.com/15c3f2228dc122923f8172eb.png',
+              description: '雪球保险专注于为不同人群提供专属的、高性价比保险产品，提供安全快捷的购买方式。'
+            }
+            xqBridge.share(shareParams)
+          }
+        })
+      },
+      /* eslint-disable */
+      wxShare (id) {
+        console.log(id)
+        if (!id) {
+          id = ''
+        }
+        if (navigator.userAgent.match(/MicroMessenger/i)) {
+          
+          fetch('/xueqiu/service/wcshare?url=' + encodeURIComponent(location.href.split('#')[0]))
+            .then(response => response.json())
+            .then(response =>{
+              var Title = '雪球保险'
+              var Desc = '雪球保险专注于为不同人群提供专属的、高性价比保险产品，提供安全快捷的购买方式。'
+              var ImgUrl = 'https://xqimg.imedao.com/15c3f2228dc122923f8172eb.png'
+              var Link = 'https://baoxian.xueqiu.com/#/?from=wx_share&channel=' + id
+              // alert(JSON.stringify(response))
+              wx.config({
+                appId: response.appId,
+                timestamp: response.timestamp,
+                nonceStr: response.nonceStr,
+                signature: response.signature,
+                jsApiList: ['onMenuShareTimeline', 'onMenuShareAppMessage', 'onMenuShareQQ', 'onMenuShareQZone']
+              })
+              wx.ready(function () {
+                //好友
+                wx.onMenuShareAppMessage({
+                  title: Title,
+                  desc: Desc,
+                  link: Link,
+                  imgUrl: ImgUrl,
+                  success: function () {
+                    // 用户确认分享后执行的回调函数
+                    _hmt.push(['_trackEvent', 'share', 'wx', 'message', +id])
+                  },
+                  cancel: function () {
+                    // 用户取消分享后执行的回调函数
+                  }
+                })
+                //朋友圈
+                wx.onMenuShareTimeline({
+                  title: Title,
+                  link: Link,
+                  imgUrl: ImgUrl,
+                  success: function () {
+                    // 用户确认分享后执行的回调函数
+                    _hmt.push(['_trackEvent', 'share', 'wx', 'timeline', +id])
+                  },
+                })
+                //qq好友
+                wx.onMenuShareQQ({
+                  title: Title, // 分享标题
+                  desc: Desc, // 分享描述
+                  link: Link, // 分享链接
+                  imgUrl: ImgUrl, // 分享图标
+                })
+                //qq空间
+                wx.onMenuShareQZone({
+                  title: Title, // 分享标题
+                  desc: Desc, // 分享描述
+                  link: Link, // 分享链接
+                  imgUrl: ImgUrl, // 分享图标
+                })
+              })
+              wx.error(function(res){
+                  // config信息验证失败会执行error函数，如签名过期导致验证失败，具体错误信息可以打开config的debug模式查看，也可以在返回的res参数中查看，对于SPA可以在这里更新签名。
+                // alert(JSON.stringify(res))
+              });
+            })
+        }
       }
     }
   }
